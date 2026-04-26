@@ -1,0 +1,87 @@
+import Anthropic from '@anthropic-ai/sdk'
+import { readFileSync, writeFileSync } from 'fs'
+import { execSync } from 'child_process'
+import { sendMessage } from './telegram.js'
+
+const client = new Anthropic()
+
+export async function runWeekly() {
+  const coach = JSON.parse(readFileSync('./coach.json', 'utf8'))
+  const { profile, goals, currentWeek, history } = coach
+
+  const allocationLines = Object.entries(currentWeek.allocations)
+    .map(([key, hours]) => {
+      const goal = goals[key]
+      const notes = goal.notes ? ` — ${goal.notes}` : ''
+      return `- ${goal.description} [${goal.priority}]: ${hours}h/week${notes}`
+    })
+    .join('\n')
+
+  const today = new Date().toISOString().split('T')[0]
+
+  const userMessage = `Week ending ${today}.
+
+Goals and current allocations:
+${allocationLines}
+
+History of past weeks (most recent first):
+${history.length === 0 ? 'None yet — this is the first week.' : history.slice(-4).reverse().map(w =>
+    `Week of ${w.startDate}: ${Object.entries(w.allocations).map(([k, h]) => `${k}=${h}h`).join(', ')}`
+  ).join('\n')}
+
+Respond with a valid JSON object in this exact format, no markdown, no extra text:
+{
+  "summary": "weekly reflection text here (~250 words)",
+  "allocations": {
+    "jobSearch": <number>,
+    "applyKit": <number>,
+    "groovebox": <number>,
+    "bakuBook": <number>,
+    "gym": <number>,
+    "spanish": <number>
+  }
+}
+
+For the allocations: decide the best hour distribution for next week based on goal priorities and current notes. Total hours should be realistic (around 30–40h/week across everything). Job search stays high priority while active.`
+
+  const response = await client.messages.create({
+    model: 'claude-haiku-3-5-20251001',
+    max_tokens: 800,
+    system: `You are ${profile.name}'s personal coach. Analyze his week and set realistic, strategic goals. Be direct in the summary — what went well, what needs focus, no fluff. Return only valid JSON.`,
+    messages: [{ role: 'user', content: userMessage }]
+  })
+
+  const rawText = response.content[0].text.trim()
+  let parsed
+  try {
+    parsed = JSON.parse(rawText)
+  } catch {
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) throw new Error(`Failed to parse weekly response:\n${rawText}`)
+    parsed = JSON.parse(jsonMatch[0])
+  }
+
+  const { summary, allocations } = parsed
+
+  // Archive current week and set new one
+  coach.history.push({ startDate: currentWeek.startDate, allocations: currentWeek.allocations })
+  coach.currentWeek = { startDate: today, allocations }
+
+  writeFileSync('./coach.json', JSON.stringify(coach, null, 2) + '\n')
+
+  // Commit back to repo
+  execSync('git config user.name "coach-bot"')
+  execSync('git config user.email "github-actions[bot]@users.noreply.github.com"')
+  execSync('git add coach.json')
+  execSync('git commit -m "chore: weekly coach update [skip ci]"')
+  execSync('git push')
+
+  // Format Telegram message
+  const allocationTable = Object.entries(allocations)
+    .map(([key, hours]) => `${goals[key].description}: *${hours}h*`)
+    .join('\n')
+
+  const telegramMsg = `*Weekly Review — ${today}*\n\n${summary}\n\n*Next week's plan:*\n${allocationTable}`
+  await sendMessage(telegramMsg)
+  console.log('Weekly message sent and coach.json committed.')
+}

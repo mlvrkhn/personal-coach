@@ -1,0 +1,50 @@
+{
+  "profile": {
+    "name": "Martin",
+    "timezone": "Europe/Warsaw"
+  },
+  "goals": {
+    "jobSearch": {
+      "description": "Find a junior cybersecurity or frontend/fullstack dev role",
+      "priority": "high",
+      "notes": ""
+    },
+    "applyKit": {
+      "description": "Side project: ApplyKit",
+      "priority": "medium",
+      "notes": ""
+    },
+    "groovebox": {
+      "description": "Side project: Groovebox",
+      "priority": "medium",
+      "notes": ""
+    },
+    "bakuBook": {
+      "description": "Book about Polish exiles and the oil boom in XIX/XX century",
+      "priority": "medium",
+      "notes": ""
+    },
+    "gym": {
+      "description": "Regular gym workouts",
+      "priority": "medium",
+      "notes": ""
+    },
+    "spanish": {
+      "description": "Learn Spanish (currently A2)",
+      "priority": "low",
+      "notes": ""
+    }
+  },
+  "currentWeek": {
+    "startDate": "2026-04-27",
+    "allocations": {
+      "jobSearch": 15,
+      "applyKit": 5,
+      "groovebox": 3,
+      "bakuBook": 4,
+      "gym": 3,
+      "spanish": 2
+    }
+  },
+  "history": []
+}
