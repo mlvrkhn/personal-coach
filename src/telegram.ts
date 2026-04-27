@@ -1,4 +1,4 @@
-export async function sendMessage(text) {
+export async function sendMessage(text: string): Promise<void> {
   const url = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`
   const res = await fetch(url, {
     method: 'POST',

@@ -1,14 +1,15 @@
 import { runDaily } from './daily.js'
 import { runWeekly } from './weekly.js'
 
-function detectMode() {
-  if (process.env.MODE) return process.env.MODE
+function detectMode(): 'daily' | 'weekly' {
+  if (process.env.MODE === 'daily' || process.env.MODE === 'weekly') {
+    return process.env.MODE
+  }
 
   const now = new Date()
   const isSunday = now.getUTCDay() === 0
   const hour = now.getUTCHours()
 
-  // Sunday at/after 17:00 UTC = weekly
   if (isSunday && hour >= 17) return 'weekly'
   return 'daily'
 }

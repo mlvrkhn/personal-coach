@@ -2,11 +2,12 @@ import Groq from 'groq-sdk'
 import { readFileSync, writeFileSync } from 'fs'
 import { execSync } from 'child_process'
 import { sendMessage } from './telegram.js'
+import type { CoachData, WeeklyResponse } from './types.js'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-export async function runWeekly() {
-  const coach = JSON.parse(readFileSync('./coach.json', 'utf8'))
+export async function runWeekly(): Promise<void> {
+  const coach: CoachData = JSON.parse(readFileSync('./coach.json', 'utf8'))
   const { profile, goals, currentWeek, history } = coach
 
   const allocationLines = Object.entries(currentWeek.allocations)
@@ -18,6 +19,12 @@ export async function runWeekly() {
     .join('\n')
 
   const today = new Date().toISOString().split('T')[0]
+
+  const historyText = history.length === 0
+    ? 'None yet — this is the first week.'
+    : history.slice(-4).reverse()
+        .map(w => `Week of ${w.startDate}: ${Object.entries(w.allocations).map(([k, h]) => `${k}=${h}h`).join(', ')}`)
+        .join('\n')
 
   const response = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
@@ -35,9 +42,7 @@ Goals and current allocations:
 ${allocationLines}
 
 History of past weeks (most recent first):
-${history.length === 0 ? 'None yet — this is the first week.' : history.slice(-4).reverse().map(w =>
-    `Week of ${w.startDate}: ${Object.entries(w.allocations).map(([k, h]) => `${k}=${h}h`).join(', ')}`
-  ).join('\n')}
+${historyText}
 
 Respond with a valid JSON object in this exact format, no markdown, no extra text:
 {
@@ -57,9 +62,9 @@ For the allocations: decide the best hour distribution for next week based on go
     ]
   })
 
-  const rawText = response.choices[0].message.content.trim()
+  const rawText = response.choices[0].message.content?.trim() ?? ''
 
-  let parsed
+  let parsed: WeeklyResponse
   try {
     parsed = JSON.parse(rawText)
   } catch {

@@ -3,10 +3,16 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "daily": "MODE=daily node src/index.js",
-    "weekly": "MODE=weekly node src/index.js"
+    "daily": "MODE=daily npx tsx src/index.ts",
+    "weekly": "MODE=weekly npx tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "groq-sdk": "^0.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
   }
 }
