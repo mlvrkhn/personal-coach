@@ -3,6 +3,25 @@ import { readFileSync, writeFileSync } from 'fs'
 import { sendMessage } from './telegram.js'
 import type { CoachData, Notes, WeeklyResponse } from './types.js'
 
+async function pushContextToKV(context: { goals: CoachData['goals']; currentWeek: CoachData['currentWeek'] }): Promise<void> {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
+  const namespaceId = process.env.CLOUDFLARE_KV_NAMESPACE_ID
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN
+  if (!accountId || !namespaceId || !apiToken) return
+
+  await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${namespaceId}/values/coach%3Acontext`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(context)
+    }
+  )
+}
+
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 function loadNotes(): Notes {
@@ -87,6 +106,8 @@ Allocations: realistic total 30–40h/week. Job search stays high priority.`
   coach.currentWeek = { startDate: today, allocations }
 
   writeFileSync('./coach.json', JSON.stringify(coach, null, 2) + '\n')
+
+  await pushContextToKV({ goals: coach.goals, currentWeek: coach.currentWeek })
 
   const allocationTable = Object.entries(allocations)
     .map(([key, hours]) => `${goals[key].description}: *${hours}h*`)
