@@ -1,6 +1,5 @@
 import Groq from 'groq-sdk'
 import { readFileSync, writeFileSync } from 'fs'
-import { execSync } from 'child_process'
 import { sendMessage } from './telegram.js'
 import type { CoachData, Notes, WeeklyResponse } from './types.js'
 
@@ -37,11 +36,11 @@ export async function runWeekly(): Promise<void> {
 
   const response = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
-    max_tokens: 800,
+    max_tokens: 500,
     messages: [
       {
         role: 'system',
-        content: `You are ${profile.name}'s personal coach. Analyze his week and set realistic, strategic goals. Be direct in the summary — what went well, what needs focus, no fluff. Return only valid JSON.`
+        content: `You are ${profile.name}'s personal coach. Be direct, no fluff. Return only valid JSON.`
       },
       {
         role: 'user',
@@ -50,12 +49,12 @@ export async function runWeekly(): Promise<void> {
 Goals and current allocations:
 ${allocationLines}
 
-History of past weeks (most recent first):
+History (most recent first):
 ${historyText}
 
-Respond with a valid JSON object in this exact format, no markdown, no extra text:
+Respond with valid JSON only, no markdown:
 {
-  "summary": "weekly reflection text here (~250 words)",
+  "summary": "<960 characters max. Direct weekly reflection: what to focus on, what to adjust. No greetings.>",
   "allocations": {
     "jobSearch": <number>,
     "applyKit": <number>,
@@ -66,7 +65,7 @@ Respond with a valid JSON object in this exact format, no markdown, no extra tex
   }
 }
 
-For the allocations: decide the best hour distribution for next week based on goal priorities and current notes. Total hours should be realistic (around 30–40h/week across everything). Job search stays high priority while active.`
+Allocations: realistic total 30–40h/week. Job search stays high priority.`
       }
     ]
   })
@@ -89,16 +88,10 @@ For the allocations: decide the best hour distribution for next week based on go
 
   writeFileSync('./coach.json', JSON.stringify(coach, null, 2) + '\n')
 
-  execSync('git config user.name "coach-bot"')
-  execSync('git config user.email "github-actions[bot]@users.noreply.github.com"')
-  execSync('git add coach.json')
-  execSync('git commit -m "chore: weekly coach update [skip ci]"')
-  execSync('git push')
-
   const allocationTable = Object.entries(allocations)
     .map(([key, hours]) => `${goals[key].description}: *${hours}h*`)
     .join('\n')
 
-  await sendMessage(`*Weekly Review — ${today}*\n\n${summary}\n\n*Next week's plan:*\n${allocationTable}`)
-  console.log('Weekly message sent and coach.json committed.')
+  await sendMessage(`*Weekly Review — ${today}*\n\n${summary}\n\n*Next week:*\n${allocationTable}`)
+  console.log('Weekly message sent.')
 }

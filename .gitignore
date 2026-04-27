@@ -1,4 +1,5 @@
 node_modules/
 .env
+coach.json
 notes.json
 *.local.json

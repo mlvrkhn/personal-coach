@@ -39,22 +39,22 @@ export async function runDaily(): Promise<void> {
 
   const response = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
-    max_tokens: 400,
+    max_tokens: 100,
     messages: [
       {
         role: 'system',
-        content: `You are ${profile.name}'s personal coach. Be direct, concrete, and human. No corporate motivational speak. No greetings or sign-offs.`
+        content: `You are ${profile.name}'s personal coach. Be direct, concrete, no fluff, no greetings.`
       },
       {
         role: 'user',
-        content: `Today is ${dayName}, ${dateStr}.
+        content: `Today: ${dayName}, ${dateStr}.
 
-This week's hour allocations:
+Allocations:
 ${allocationLines}
 
-${activeNotes ? `Current context:\n${activeNotes}` : ''}
+${activeNotes ? `Context:\n${activeNotes}` : ''}
 
-Generate a short coaching message for today. Be specific to the priorities, reference the context if relevant. Direct and motivating, no generic fluff. Around 150–200 words. Use plain text, no markdown headers.`
+Write a coaching message. Max 320 characters. Plain text only.`
       }
     ]
   })
