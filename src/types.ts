@@ -5,13 +5,11 @@ export interface Goal {
   priority: Priority
 }
 
+export interface Personality {
+  description: string
+}
+
 export interface Notes {
-  jobSearch?: string
-  applyKit?: string
-  groovebox?: string
-  bakuBook?: string
-  gym?: string
-  spanish?: string
   [key: string]: string | undefined
 }
 
@@ -34,6 +32,7 @@ export interface CoachData {
     name: string
     timezone: string
   }
+  personality?: Personality
   goals: Record<string, Goal>
   currentWeek: WeekRecord
   history: WeekRecord[]
@@ -42,4 +41,10 @@ export interface CoachData {
 export interface WeeklyResponse {
   summary: string
   allocations: WeekAllocation
+}
+
+export interface JournalEntry {
+  date: string
+  type: 'chat' | 'weekly'
+  entry: string
 }

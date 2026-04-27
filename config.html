@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Coach — Config</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; padding: 2rem; }
+    h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 2rem; color: #fff; }
+    h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 0.75rem; margin-top: 2rem; }
+    label { display: block; font-size: 0.85rem; color: #aaa; margin-bottom: 0.3rem; }
+    input, textarea, select {
+      width: 100%; padding: 0.6rem 0.75rem; background: #1a1a1a; border: 1px solid #333;
+      border-radius: 6px; color: #e0e0e0; font-size: 0.875rem; font-family: inherit;
+      outline: none; transition: border-color 0.15s;
+    }
+    input:focus, textarea:focus, select:focus { border-color: #555; }
+    textarea { resize: vertical; min-height: 100px; }
+    .field { margin-bottom: 1rem; }
+    .goal-row { display: grid; grid-template-columns: 1fr 120px 80px 28px; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+    .goal-row input[type=number] { width: 100%; }
+    .goal-header { display: grid; grid-template-columns: 1fr 120px 80px 28px; gap: 0.5rem; margin-bottom: 0.3rem; }
+    .goal-header span { font-size: 0.75rem; color: #555; }
+    button { cursor: pointer; border: none; border-radius: 6px; font-size: 0.875rem; font-family: inherit; }
+    .btn-add { background: #1a1a1a; border: 1px solid #333; color: #aaa; padding: 0.5rem 1rem; width: 100%; margin-top: 0.5rem; }
+    .btn-add:hover { border-color: #555; color: #e0e0e0; }
+    .btn-remove { background: #1a1a1a; border: 1px solid #333; color: #555; padding: 0; width: 28px; height: 28px; font-size: 1rem; line-height: 28px; text-align: center; }
+    .btn-remove:hover { color: #e55; border-color: #e55; }
+    .btn-generate { background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 0.75rem 1.5rem; font-size: 0.875rem; margin-top: 1.5rem; }
+    .btn-generate:hover { background: #333; }
+    .output-section { margin-top: 2rem; }
+    .output-block { position: relative; margin-bottom: 1rem; }
+    .output-block textarea { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.8rem; background: #111; min-height: 140px; color: #7dc9a0; }
+    .btn-copy { position: absolute; top: 0.5rem; right: 0.5rem; background: #222; border: 1px solid #444; color: #aaa; padding: 0.3rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+    .btn-copy:hover { color: #fff; }
+    .instructions { background: #161616; border: 1px solid #2a2a2a; border-radius: 8px; padding: 1rem; margin-top: 1.5rem; font-size: 0.82rem; color: #888; line-height: 1.6; }
+    .instructions strong { color: #ccc; }
+    .instructions ol { padding-left: 1.2rem; }
+    hr { border: none; border-top: 1px solid #222; margin: 2rem 0; }
+    .container { max-width: 720px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Personal Coach — Configuration</h1>
+
+  <h2>Profile</h2>
+  <div class="field">
+    <label>Your name</label>
+    <input type="text" id="name" value="Martin">
+  </div>
+
+  <h2>Personality</h2>
+  <div class="field">
+    <label>Coach personality description</label>
+    <textarea id="personality" rows="5">You are Martin's personal coach. You are brutally honest, provocative, and demanding. You call out excuses immediately and mock laziness directly. You don't use corporate motivational speak — ever. But underneath the harshness is genuine care. You want Martin to win, badly. You push because you believe in him. Think Gordon Ramsay meets a Spartan drill sergeant who actually loves his recruits.</textarea>
+  </div>
+
+  <h2>Goals &amp; Weekly Allocations</h2>
+  <div class="goal-header">
+    <span>Description</span>
+    <span>Priority</span>
+    <span>Hours/week</span>
+    <span></span>
+  </div>
+  <div id="goals-list"></div>
+  <button class="btn-add" onclick="addGoal()">+ Add goal</button>
+
+  <hr>
+
+  <button class="btn-generate" onclick="generate()">Generate JSON</button>
+
+  <div class="output-section" id="output" style="display:none">
+    <h2>COACH_JSON secret</h2>
+    <div class="output-block">
+      <textarea id="out-coach" readonly></textarea>
+      <button class="btn-copy" onclick="copy('out-coach', this)">Copy</button>
+    </div>
+
+    <h2>NOTES_JSON secret (template)</h2>
+    <div class="output-block">
+      <textarea id="out-notes" readonly rows="6"></textarea>
+      <button class="btn-copy" onclick="copy('out-notes', this)">Copy</button>
+    </div>
+
+    <div class="instructions">
+      <strong>Next steps:</strong>
+      <ol>
+        <li>Copy <strong>COACH_JSON</strong> → GitHub repo → Settings → Secrets and variables → Actions → update <code>COACH_JSON</code></li>
+        <li>Copy <strong>NOTES_JSON</strong> → update <code>NOTES_JSON</code> secret (fill in your current notes)</li>
+        <li>Run the weekly workflow once to sync context to Cloudflare KV</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+  const DEFAULT_GOALS = [
+    { key: 'jobSearch', description: 'Find a junior cybersecurity or frontend/fullstack dev role', priority: 'high', hours: 15 },
+    { key: 'applyKit', description: 'Side project: ApplyKit', priority: 'medium', hours: 5 },
+    { key: 'groovebox', description: 'Side project: Groovebox', priority: 'medium', hours: 3 },
+    { key: 'bakuBook', description: 'Book about Polish exiles and the oil boom in XIX/XX century', priority: 'medium', hours: 4 },
+    { key: 'gym', description: 'Regular gym workouts', priority: 'medium', hours: 3 },
+    { key: 'spanish', description: 'Learn Spanish (currently A2/B1)', priority: 'low', hours: 2 },
+  ]
+
+  function slugify(str) {
+    return str.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'goal_' + Date.now()
+  }
+
+  function addGoal(goal = { key: '', description: '', priority: 'medium', hours: 3 }) {
+    const list = document.getElementById('goals-list')
+    const row = document.createElement('div')
+    row.className = 'goal-row'
+    row.innerHTML = `
+      <input type="text" placeholder="Description" value="${goal.description}" class="g-desc">
+      <select class="g-pri">
+        <option value="high" ${goal.priority === 'high' ? 'selected' : ''}>high</option>
+        <option value="medium" ${goal.priority === 'medium' ? 'selected' : ''}>medium</option>
+        <option value="low" ${goal.priority === 'low' ? 'selected' : ''}>low</option>
+      </select>
+      <input type="number" min="0" max="40" value="${goal.hours}" class="g-hours">
+      <button class="btn-remove" onclick="this.closest('.goal-row').remove()">×</button>
+    `
+    list.appendChild(row)
+  }
+
+  DEFAULT_GOALS.forEach(addGoal)
+
+  function generate() {
+    const name = document.getElementById('name').value.trim() || 'User'
+    const personality = document.getElementById('personality').value.trim()
+    const rows = document.querySelectorAll('.goal-row')
+
+    const goals = {}
+    const allocations = {}
+    const notesTemplate = {}
+
+    rows.forEach(row => {
+      const desc = row.querySelector('.g-desc').value.trim()
+      if (!desc) return
+      const key = slugify(desc)
+      const priority = row.querySelector('.g-pri').value
+      const hours = parseInt(row.querySelector('.g-hours').value) || 0
+      goals[key] = { description: desc, priority }
+      allocations[key] = hours
+      notesTemplate[key] = ''
+    })
+
+    const today = new Date().toISOString().split('T')[0]
+    const coachJson = {
+      profile: { name, timezone: 'Europe/Warsaw' },
+      personality: { description: personality },
+      goals,
+      currentWeek: { startDate: today, allocations },
+      history: []
+    }
+
+    document.getElementById('out-coach').value = JSON.stringify(coachJson, null, 2)
+    document.getElementById('out-notes').value = JSON.stringify(notesTemplate, null, 2)
+    document.getElementById('output').style.display = 'block'
+  }
+
+  function copy(id, btn) {
+    const el = document.getElementById(id)
+    navigator.clipboard.writeText(el.value).then(() => {
+      btn.textContent = 'Copied!'
+      setTimeout(() => btn.textContent = 'Copy', 1500)
+    })
+  }
+</script>
+</body>
+</html>

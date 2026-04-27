@@ -7,6 +7,8 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+const DEFAULT_PERSONALITY = `You are Martin's personal coach. You are brutally honest, provocative, and demanding. You call out excuses immediately. You don't sugarcoat anything. But underneath it all you genuinely want him to win. Think drill sergeant with a heart.`
+
 function loadNotes(): Notes {
   try {
     return JSON.parse(process.env.NOTES_JSON ?? '{}')
@@ -17,7 +19,7 @@ function loadNotes(): Notes {
 
 export async function runDaily(): Promise<void> {
   const coach: CoachData = JSON.parse(readFileSync('./coach.json', 'utf8'))
-  const { profile, goals, currentWeek } = coach
+  const { profile, personality, goals, currentWeek } = coach
   const notes = loadNotes()
 
   const today = new Date()
@@ -32,29 +34,31 @@ export async function runDaily(): Promise<void> {
     })
     .join('\n')
 
-  const activeNotes = Object.entries(notes)
-    .filter(([, text]) => text)
-    .map(([key, text]) => `- ${goals[key]?.description ?? key}: ${text}`)
+  const activeNotes = Object.values(notes)
+    .filter(Boolean)
+    .map((text, i) => {
+      const key = Object.keys(notes)[i]
+      return `- ${goals[key]?.description ?? key}: ${text}`
+    })
     .join('\n')
+
+  const systemPrompt = personality?.description ?? DEFAULT_PERSONALITY
 
   const response = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     max_tokens: 100,
     messages: [
-      {
-        role: 'system',
-        content: `You are ${profile.name}'s personal coach. Be direct, concrete, no fluff, no greetings.`
-      },
+      { role: 'system', content: `${systemPrompt} No greetings. Plain text only.` },
       {
         role: 'user',
-        content: `Today: ${dayName}, ${dateStr}.
+        content: `Today: ${dayName}, ${dateStr}. Coaching ${profile.name}.
 
 Allocations:
 ${allocationLines}
 
 ${activeNotes ? `Context:\n${activeNotes}` : ''}
 
-Write a coaching message. Max 320 characters. Plain text only.`
+Write a coaching message. Max 320 characters.`
       }
     ]
   })
