@@ -56,6 +56,7 @@ In your repo: **Settings → Secrets and variables → Actions → New repositor
 | `GROQ_API_KEY` | Your Groq API key (`gsk_...`) |
 | `TELEGRAM_BOT_TOKEN` | Your Telegram bot token |
 | `TELEGRAM_CHAT_ID` | Your Telegram chat ID |
+| `NOTES_JSON` | Your personal notes as JSON (see Usage below) |
 
 ### 5. Test it
 
@@ -65,17 +66,24 @@ A message should appear in Telegram within 30 seconds.
 
 ## Usage
 
-### Updating context
+### Updating your notes
 
-Edit the `notes` field of any goal in `coach.json` directly in the GitHub web editor. Claude picks it up on the next run.
+Personal notes never touch the repository. They live in the `NOTES_JSON` GitHub secret — a JSON object with one field per goal area.
+
+Go to **Settings → Secrets → `NOTES_JSON`** and update the value:
 
 ```json
-"jobSearch": {
-  "description": "Find a junior cybersecurity or frontend/fullstack dev role",
-  "priority": "high",
-  "notes": "Applied to 3 positions this week, waiting for responses from Firm X"
+{
+  "jobSearch": "Applied to 3 positions this week, waiting for responses from Firm X",
+  "applyKit": "Landing page done, working on auth flow",
+  "groovebox": "",
+  "bakuBook": "Finished chapter 2 outline",
+  "gym": "",
+  "spanish": "Completed Duolingo streak, 10 days"
 }
 ```
+
+The coach reads this at runtime — it's never written to disk or committed.
 
 ### Weekly automation
 

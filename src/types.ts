@@ -3,7 +3,16 @@ export type Priority = 'high' | 'medium' | 'low'
 export interface Goal {
   description: string
   priority: Priority
-  notes: string
+}
+
+export interface Notes {
+  jobSearch?: string
+  applyKit?: string
+  groovebox?: string
+  bakuBook?: string
+  gym?: string
+  spanish?: string
+  [key: string]: string | undefined
 }
 
 export interface WeekAllocation {

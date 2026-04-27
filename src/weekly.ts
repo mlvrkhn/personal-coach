@@ -2,19 +2,28 @@ import Groq from 'groq-sdk'
 import { readFileSync, writeFileSync } from 'fs'
 import { execSync } from 'child_process'
 import { sendMessage } from './telegram.js'
-import type { CoachData, WeeklyResponse } from './types.js'
+import type { CoachData, Notes, WeeklyResponse } from './types.js'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+
+function loadNotes(): Notes {
+  try {
+    return JSON.parse(process.env.NOTES_JSON ?? '{}')
+  } catch {
+    return {}
+  }
+}
 
 export async function runWeekly(): Promise<void> {
   const coach: CoachData = JSON.parse(readFileSync('./coach.json', 'utf8'))
   const { profile, goals, currentWeek, history } = coach
+  const notes = loadNotes()
 
   const allocationLines = Object.entries(currentWeek.allocations)
     .map(([key, hours]) => {
       const goal = goals[key]
-      const notes = goal.notes ? ` — ${goal.notes}` : ''
-      return `- ${goal.description} [${goal.priority}]: ${hours}h/week${notes}`
+      const note = notes[key] ? ` — ${notes[key]}` : ''
+      return `- ${goal.description} [${goal.priority}]: ${hours}h/week${note}`
     })
     .join('\n')
 

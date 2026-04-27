@@ -6,33 +6,27 @@
   "goals": {
     "jobSearch": {
       "description": "Find a junior cybersecurity or frontend/fullstack dev role",
-      "priority": "high",
-      "notes": ""
+      "priority": "high"
     },
     "applyKit": {
       "description": "Side project: ApplyKit",
-      "priority": "medium",
-      "notes": ""
+      "priority": "medium"
     },
     "groovebox": {
       "description": "Side project: Groovebox",
-      "priority": "medium",
-      "notes": ""
+      "priority": "medium"
     },
     "bakuBook": {
       "description": "Book about Polish exiles and the oil boom in XIX/XX century",
-      "priority": "medium",
-      "notes": ""
+      "priority": "medium"
     },
     "gym": {
       "description": "Regular gym workouts",
-      "priority": "medium",
-      "notes": ""
+      "priority": "medium"
     },
     "spanish": {
       "description": "Learn Spanish (currently A2)",
-      "priority": "low",
-      "notes": ""
+      "priority": "low"
     }
   },
   "currentWeek": {

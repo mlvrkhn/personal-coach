@@ -1,15 +1,24 @@
 import Groq from 'groq-sdk'
 import { readFileSync } from 'fs'
 import { sendMessage } from './telegram.js'
-import type { CoachData } from './types.js'
+import type { CoachData, Notes } from './types.js'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+function loadNotes(): Notes {
+  try {
+    return JSON.parse(process.env.NOTES_JSON ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
 export async function runDaily(): Promise<void> {
   const coach: CoachData = JSON.parse(readFileSync('./coach.json', 'utf8'))
   const { profile, goals, currentWeek } = coach
+  const notes = loadNotes()
 
   const today = new Date()
   const dayName = DAY_NAMES[today.getDay()]
@@ -18,14 +27,14 @@ export async function runDaily(): Promise<void> {
   const allocationLines = Object.entries(currentWeek.allocations)
     .map(([key, hours]) => {
       const goal = goals[key]
-      const notes = goal.notes ? ` — ${goal.notes}` : ''
-      return `- ${goal.description}: ${hours}h/week${notes}`
+      const note = notes[key] ? ` — ${notes[key]}` : ''
+      return `- ${goal.description}: ${hours}h/week${note}`
     })
     .join('\n')
 
-  const notesWithContent = Object.values(goals)
-    .filter(g => g.notes)
-    .map(g => `- ${g.description}: ${g.notes}`)
+  const activeNotes = Object.entries(notes)
+    .filter(([, text]) => text)
+    .map(([key, text]) => `- ${goals[key]?.description ?? key}: ${text}`)
     .join('\n')
 
   const response = await groq.chat.completions.create({
@@ -43,7 +52,7 @@ export async function runDaily(): Promise<void> {
 This week's hour allocations:
 ${allocationLines}
 
-${notesWithContent ? `Current context:\n${notesWithContent}` : ''}
+${activeNotes ? `Current context:\n${activeNotes}` : ''}
 
 Generate a short coaching message for today. Be specific to the priorities, reference the context if relevant. Direct and motivating, no generic fluff. Around 150–200 words. Use plain text, no markdown headers.`
       }
