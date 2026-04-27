@@ -1,9 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Groq from 'groq-sdk'
 import { readFileSync, writeFileSync } from 'fs'
 import { execSync } from 'child_process'
 import { sendMessage } from './telegram.js'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function runWeekly() {
   const coach = JSON.parse(readFileSync('./coach.json', 'utf8'))
@@ -19,9 +19,17 @@ export async function runWeekly() {
 
   const today = new Date().toISOString().split('T')[0]
 
-  const prompt = `You are ${profile.name}'s personal coach. Analyze his week and set realistic, strategic goals. Be direct in the summary — what went well, what needs focus, no fluff. Return only valid JSON.
-
-Week ending ${today}.
+  const response = await groq.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    max_tokens: 800,
+    messages: [
+      {
+        role: 'system',
+        content: `You are ${profile.name}'s personal coach. Analyze his week and set realistic, strategic goals. Be direct in the summary — what went well, what needs focus, no fluff. Return only valid JSON.`
+      },
+      {
+        role: 'user',
+        content: `Week ending ${today}.
 
 Goals and current allocations:
 ${allocationLines}
@@ -45,10 +53,11 @@ Respond with a valid JSON object in this exact format, no markdown, no extra tex
 }
 
 For the allocations: decide the best hour distribution for next week based on goal priorities and current notes. Total hours should be realistic (around 30–40h/week across everything). Job search stays high priority while active.`
+      }
+    ]
+  })
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
-  const result = await model.generateContent(prompt)
-  const rawText = result.response.text().trim()
+  const rawText = response.choices[0].message.content.trim()
 
   let parsed
   try {
@@ -76,7 +85,6 @@ For the allocations: decide the best hour distribution for next week based on go
     .map(([key, hours]) => `${goals[key].description}: *${hours}h*`)
     .join('\n')
 
-  const telegramMsg = `*Weekly Review — ${today}*\n\n${summary}\n\n*Next week's plan:*\n${allocationTable}`
-  await sendMessage(telegramMsg)
+  await sendMessage(`*Weekly Review — ${today}*\n\n${summary}\n\n*Next week's plan:*\n${allocationTable}`)
   console.log('Weekly message sent and coach.json committed.')
 }

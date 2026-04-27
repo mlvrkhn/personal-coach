@@ -1,8 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Groq from 'groq-sdk'
 import { readFileSync } from 'fs'
 import { sendMessage } from './telegram.js'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function runDaily() {
   const coach = JSON.parse(readFileSync('./coach.json', 'utf8'))
@@ -26,9 +26,17 @@ export async function runDaily() {
     .map(([, g]) => `- ${g.description}: ${g.notes}`)
     .join('\n')
 
-  const prompt = `You are ${profile.name}'s personal coach. Be direct, concrete, and human. No corporate motivational speak. No greetings or sign-offs.
-
-Today is ${dayName}, ${dateStr}.
+  const response = await groq.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    max_tokens: 400,
+    messages: [
+      {
+        role: 'system',
+        content: `You are ${profile.name}'s personal coach. Be direct, concrete, and human. No corporate motivational speak. No greetings or sign-offs.`
+      },
+      {
+        role: 'user',
+        content: `Today is ${dayName}, ${dateStr}.
 
 This week's hour allocations:
 ${allocationLines}
@@ -36,11 +44,11 @@ ${allocationLines}
 ${notesWithContent ? `Current context:\n${notesWithContent}` : ''}
 
 Generate a short coaching message for today. Be specific to the priorities, reference the context if relevant. Direct and motivating, no generic fluff. Around 150–200 words. Use plain text, no markdown headers.`
+      }
+    ]
+  })
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
-  const result = await model.generateContent(prompt)
-  const message = result.response.text().trim()
-
+  const message = response.choices[0].message.content.trim()
   await sendMessage(`*${dayName} — ${dateStr}*\n\n${message}`)
   console.log('Daily message sent.')
 }
