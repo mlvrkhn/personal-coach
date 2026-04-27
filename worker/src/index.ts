@@ -37,52 +37,56 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method !== 'POST') return new Response('OK')
+    try {
+      if (request.method !== 'POST') return new Response('OK')
 
-    const body = await request.json<TelegramMessage>()
-    const msg = body.message
-    if (!msg?.text) return new Response('OK')
+      const body = await request.json<TelegramMessage>()
+      const msg = body.message
+      if (!msg?.text) return new Response('OK')
 
-    const chatId = String(msg.chat.id)
-    if (chatId !== env.TELEGRAM_CHAT_ID) return new Response('OK')
+      const chatId = String(msg.chat.id)
+      if (chatId !== env.TELEGRAM_CHAT_ID) return new Response('OK')
 
-    const userText = msg.text.trim()
+      const userText = msg.text.trim()
 
-    const [contextRaw, historyRaw] = await Promise.all([
-      env.COACH_KV.get('coach:context'),
-      env.COACH_KV.get('coach:history')
-    ])
+      const [contextRaw, historyRaw] = await Promise.all([
+        env.COACH_KV.get('coach:context'),
+        env.COACH_KV.get('coach:history')
+      ])
 
-    const context: CoachContext | null = contextRaw ? JSON.parse(contextRaw) : null
-    const history: ChatMessage[] = historyRaw ? JSON.parse(historyRaw) : []
+      const context: CoachContext | null = contextRaw ? JSON.parse(contextRaw) : null
+      const history: ChatMessage[] = historyRaw ? JSON.parse(historyRaw) : []
 
-    const systemPrompt = buildSystemPrompt(context)
+      const systemPrompt = buildSystemPrompt(context)
 
-    const groq = new Groq({ apiKey: env.GROQ_API_KEY })
-    const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 150,
-      messages: [
-        { role: 'system', content: systemPrompt },
+      const groq = new Groq({ apiKey: env.GROQ_API_KEY })
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 150,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...history,
+          { role: 'user', content: userText }
+        ]
+      })
+
+      const reply = response.choices[0].message.content?.trim() ?? '...'
+
+      await sendTelegram(env.TELEGRAM_BOT_TOKEN, chatId, reply)
+
+      const updatedHistory: ChatMessage[] = [
         ...history,
-        { role: 'user', content: userText }
-      ]
-    })
+        { role: 'user' as const, content: userText },
+        { role: 'assistant' as const, content: reply }
+      ].slice(-20)
 
-    const reply = response.choices[0].message.content?.trim() ?? '...'
+      await env.COACH_KV.put('coach:history', JSON.stringify(updatedHistory))
 
-    await sendTelegram(env.TELEGRAM_BOT_TOKEN, chatId, reply)
-
-    // Keep last 20 messages (10 turns)
-    const updatedHistory: ChatMessage[] = [
-      ...history,
-      { role: 'user' as const, content: userText },
-      { role: 'assistant' as const, content: reply }
-    ].slice(-20)
-
-    await env.COACH_KV.put('coach:history', JSON.stringify(updatedHistory))
-
-    return new Response('OK')
+      return new Response('OK')
+    } catch (err) {
+      console.error('worker error:', err)
+      return new Response('OK')
+    }
   }
 }
 
