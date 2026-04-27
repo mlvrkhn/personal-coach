@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { readFileSync, writeFileSync } from 'fs'
 import { execSync } from 'child_process'
 import { sendMessage } from './telegram.js'
 
-const client = new Anthropic()
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 export async function runWeekly() {
   const coach = JSON.parse(readFileSync('./coach.json', 'utf8'))
@@ -19,7 +19,9 @@ export async function runWeekly() {
 
   const today = new Date().toISOString().split('T')[0]
 
-  const userMessage = `Week ending ${today}.
+  const prompt = `You are ${profile.name}'s personal coach. Analyze his week and set realistic, strategic goals. Be direct in the summary — what went well, what needs focus, no fluff. Return only valid JSON.
+
+Week ending ${today}.
 
 Goals and current allocations:
 ${allocationLines}
@@ -44,14 +46,10 @@ Respond with a valid JSON object in this exact format, no markdown, no extra tex
 
 For the allocations: decide the best hour distribution for next week based on goal priorities and current notes. Total hours should be realistic (around 30–40h/week across everything). Job search stays high priority while active.`
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-3-5-20251001',
-    max_tokens: 800,
-    system: `You are ${profile.name}'s personal coach. Analyze his week and set realistic, strategic goals. Be direct in the summary — what went well, what needs focus, no fluff. Return only valid JSON.`,
-    messages: [{ role: 'user', content: userMessage }]
-  })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  const result = await model.generateContent(prompt)
+  const rawText = result.response.text().trim()
 
-  const rawText = response.content[0].text.trim()
   let parsed
   try {
     parsed = JSON.parse(rawText)
@@ -63,20 +61,17 @@ For the allocations: decide the best hour distribution for next week based on go
 
   const { summary, allocations } = parsed
 
-  // Archive current week and set new one
   coach.history.push({ startDate: currentWeek.startDate, allocations: currentWeek.allocations })
   coach.currentWeek = { startDate: today, allocations }
 
   writeFileSync('./coach.json', JSON.stringify(coach, null, 2) + '\n')
 
-  // Commit back to repo
   execSync('git config user.name "coach-bot"')
   execSync('git config user.email "github-actions[bot]@users.noreply.github.com"')
   execSync('git add coach.json')
   execSync('git commit -m "chore: weekly coach update [skip ci]"')
   execSync('git push')
 
-  // Format Telegram message
   const allocationTable = Object.entries(allocations)
     .map(([key, hours]) => `${goals[key].description}: *${hours}h*`)
     .join('\n')
