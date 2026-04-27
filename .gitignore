@@ -3,3 +3,4 @@ node_modules/
 coach.json
 notes.json
 *.local.json
+worker/.wrangler/
