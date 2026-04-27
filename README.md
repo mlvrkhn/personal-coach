@@ -1,111 +1,137 @@
 # Personal Coach Bot
 
-An automated personal coaching system that delivers daily motivation and weekly goal planning directly to Telegram — for free, with zero manual overhead.
+An automated personal coaching system: daily motivation, weekly goal planning, and two-way chat — delivered to Telegram, running for free.
 
 ## How it works
 
 ```
-GitHub Actions (cron) → Node.js + TypeScript → Groq LLM API → Telegram Bot
+GitHub Actions (cron) → Node.js/TypeScript → Groq LLM → Telegram  (scheduled push)
+Telegram reply → Cloudflare Worker → Groq LLM → Telegram           (instant reply)
 ```
 
-Two scheduled jobs run automatically:
+**Scheduled:**
+- Daily at 08:00 CEST — focused coaching message based on the week's priorities
+- Sunday at 19:00 CEST — weekly reflection + AI-generated hour allocations for the next week
 
-- **Daily at 08:00 CEST** — a focused coaching message based on the week's priorities and your latest notes
-- **Sunday at 19:00 CEST** — a weekly reflection + AI-generated hour allocation for the next week, automatically committed back to the repo
-
-All state lives in `coach.json`, committed to the repository. No database, no server, no running costs.
+**On-demand:**
+- Send any message to the bot → get a coaching reply within 2–3 seconds
+- Conversation history maintained (last 10 turns)
 
 ## Tech stack
 
-- **Runtime**: Node.js 24 + TypeScript (executed directly via `tsx`)
-- **LLM**: Groq API — `llama-3.3-70b-versatile` (free tier, 14 400 req/day)
-- **Delivery**: Telegram Bot API
-- **Automation**: GitHub Actions (cron schedule)
-- **State**: `coach.json` versioned in git
+| Component | Technology |
+|-----------|-----------|
+| Scheduled jobs | GitHub Actions (cron) |
+| Reply webhook | Cloudflare Workers |
+| LLM | Groq API — `llama-3.3-70b-versatile` (free) |
+| State | GitHub Secrets + Cloudflare KV |
+| Runtime | Node.js 24 + TypeScript (`tsx`) |
+| Delivery | Telegram Bot API |
+
+## Privacy model
+
+No personal data is committed to the repository.
+
+| Data | Storage |
+|------|---------|
+| API keys | GitHub Secrets |
+| Personal notes / diary entries | GitHub Secret `NOTES_JSON` |
+| Goals, allocations, history | GitHub Secret `COACH_JSON` |
+| Conversation history | Cloudflare KV |
+| Generated messages | Telegram only, never logged |
 
 ## Setup
 
-### 1. Clone and install
+### 1. Telegram bot
 
-```bash
-git clone https://github.com/your-username/personal-coach
-cd personal-coach
-npm install
-```
-
-### 2. Create a Telegram bot
-
-1. Open Telegram → search `@BotFather` → send `/newbot`
-2. Follow the prompts — you'll receive a **bot token**
-3. Send any message to your new bot, then open:
+1. Open Telegram → `@BotFather` → `/newbot` → follow prompts → copy token
+2. Send any message to your new bot, then visit:
    ```
-   https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
+   https://api.telegram.org/bot<TOKEN>/getUpdates
    ```
-4. Find `"chat": { "id": ... }` — that's your **chat ID**
+3. Find `"chat": { "id": ... }` — that's your chat ID
 
-### 3. Get a Groq API key
+### 2. Groq API key
 
-Sign up at [console.groq.com](https://console.groq.com) → API Keys → Create API Key. Free, no credit card required.
+Sign up at [console.groq.com](https://console.groq.com) → API Keys → Create. Free, no credit card.
 
-### 4. Add GitHub secrets
+### 3. GitHub secrets
 
-In your repo: **Settings → Secrets and variables → Actions → New repository secret**
+Repo → **Settings → Secrets and variables → Actions**:
 
 | Secret | Value |
 |--------|-------|
-| `GROQ_API_KEY` | Your Groq API key (`gsk_...`) |
-| `TELEGRAM_BOT_TOKEN` | Your Telegram bot token |
-| `TELEGRAM_CHAT_ID` | Your Telegram chat ID |
-| `NOTES_JSON` | Your personal notes as JSON (see Usage below) |
+| `GROQ_API_KEY` | `gsk_...` |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token |
+| `TELEGRAM_CHAT_ID` | Your chat ID |
+| `NOTES_JSON` | `{}` (update later — see Usage) |
+| `COACH_JSON` | Contents of `coach.json` (your goals config) |
+| `GH_PAT` | GitHub PAT with `secrets:write` permission |
 
-### 5. Test it
+### 4. Cloudflare Worker (for replies)
 
-Go to **Actions → Personal Coach → Run workflow** → select `daily` → run.
+```bash
+cd worker
+npx wrangler login
+wrangler kv namespace create coach   # copy the id into wrangler.toml
+wrangler deploy
+wrangler secret put GROQ_API_KEY
+wrangler secret put TELEGRAM_BOT_TOKEN
+wrangler secret put TELEGRAM_CHAT_ID
+```
 
-A message should appear in Telegram within 30 seconds.
+Register the webhook with Telegram:
+```
+https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://personal-coach.<your-subdomain>.workers.dev
+```
+
+If your `workers.dev` subdomain is protected by Cloudflare Access, add a **Bypass** policy for `personal-coach.<your-subdomain>.workers.dev`.
+
+### 5. Sync initial context to KV
+
+```bash
+node -e "
+const c = JSON.parse(require('fs').readFileSync('./coach.json','utf8'));
+require('fs').writeFileSync('/tmp/ctx.json', JSON.stringify({goals:c.goals,currentWeek:c.currentWeek}));
+"
+cd worker && npx wrangler kv key put --binding=COACH_KV "coach:context" --path /tmp/ctx.json --remote
+```
+
+### 6. Test
+
+- **Scheduled**: Actions → Personal Coach → Run workflow → `daily`
+- **Reply**: Send any message to your bot → expect reply in 2–3 seconds
 
 ## Usage
 
-### Updating your notes
+### Updating notes
 
-Personal notes never touch the repository. They live in the `NOTES_JSON` GitHub secret — a JSON object with one field per goal area.
-
-Go to **Settings → Secrets → `NOTES_JSON`** and update the value:
+Notes never touch the repo. Edit the `NOTES_JSON` GitHub secret:
 
 ```json
 {
-  "jobSearch": "Applied to 3 positions this week, waiting for responses from Firm X",
-  "applyKit": "Landing page done, working on auth flow",
+  "jobSearch": "Applied to 3 positions, waiting for responses",
+  "applyKit": "Working on auth flow",
   "groovebox": "",
   "bakuBook": "Finished chapter 2 outline",
-  "gym": "",
-  "spanish": "Completed Duolingo streak, 10 days"
+  "gym": "3 sessions last week",
+  "spanish": "Duolingo streak 14 days"
 }
 ```
 
-The coach reads this at runtime — it's never written to disk or committed.
+### Talking to the bot
 
-### Weekly automation
-
-Every Sunday at 19:00 CEST the bot:
-1. Generates a weekly reflection
-2. Decides next week's hour allocation per goal (based on priorities and notes)
-3. Commits the updated `coach.json` back to the repo
+Just send any message. The bot has context of your goals and current week plan, and remembers the last 10 conversation turns.
 
 ### Running locally
 
 ```bash
-npm run daily    # simulate daily message
-npm run weekly   # simulate weekly review (will also commit + push)
-npm run typecheck  # TypeScript type check
+npm run daily      # simulate daily message
+npm run weekly     # simulate weekly review
+npm run typecheck  # TypeScript check
 ```
 
-Requires a `.env` file or exported env vars:
-```
-GROQ_API_KEY=gsk_...
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-```
+Requires env vars: `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `NOTES_JSON`, `COACH_JSON`.
 
 ## Project structure
 
@@ -113,11 +139,13 @@ TELEGRAM_CHAT_ID=...
 ├── .github/workflows/coach.yml   # Cron schedule + manual trigger
 ├── src/
 │   ├── index.ts                  # Entry point, mode detection
-│   ├── daily.ts                  # Daily message logic
-│   ├── weekly.ts                 # Weekly review + coach.json update
+│   ├── daily.ts                  # Daily coaching message
+│   ├── weekly.ts                 # Weekly review + KV context sync
 │   ├── telegram.ts               # Telegram Bot API wrapper
 │   └── types.ts                  # TypeScript interfaces
-├── coach.json                    # Your goals and state
+├── worker/
+│   ├── src/index.ts              # Cloudflare Worker webhook handler
+│   └── wrangler.toml             # CF Worker config + KV binding
 └── tsconfig.json
 ```
 
@@ -126,17 +154,7 @@ TELEGRAM_CHAT_ID=...
 | Service | Cost |
 |---------|------|
 | GitHub Actions | Free |
+| Cloudflare Workers + KV | Free |
 | Groq API | Free (14 400 req/day) |
 | Telegram Bot API | Free |
 | **Total** | **$0/month** |
-
-## Tracked areas
-
-Configurable in `coach.json`. Defaults:
-
-- Job search
-- ApplyKit (side project)
-- Groovebox (side project)
-- Baku Book (writing project)
-- Gym
-- Spanish
